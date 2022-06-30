@@ -225,13 +225,14 @@ Taro-specific commitments, then the same or different leaf version can be used
 to gate verification of the new behavior.
 
 An <code>asset_id</code> is the 32-byte hash of: 
-* <code>sha256(genesis_outpoint || asset_tag || asset_meta || output_index)</code>
+* <code>sha256(genesis_outpoint || asset_tag || asset_meta || output_index || asset_type)</code>
 
 where:
 * <code>genesis_outpoint</code> is the first previous input outpoint used in the asset genesis transaction serialized in Bitcoin wire format.
 * <code>asset_tag</code> is a random 32-byte value that represents a given asset, and can be used to link a series of discrete assets into a single asset family. In practice, this will typically be the hash of a human readable asset name.
 * <code>asset_meta</code> is an opaque 32-byte value that can be used to commit to various metadata including external links, documents, stats, attributes, images, etc. Importantly, this field is considered to be ''immutable''.
-* <code>output_index</code> is the index of the output which contains the unique Taro commitment in the genesis transaction. 
+* <code>output_index</code> (4 byte, big-endian) is the index  of the output which contains the unique Taro commitment in the genesis transaction. 
+* <code>asset_type</code> (1 byte) is the type of the asset being minted.
 
 Given the above structure, the <code>asset_id</code> is guaranteed to be
 globally unique from the PoV of the chain, as thanks to
@@ -384,10 +385,21 @@ MS-SMT is structured as follows:
 
 Similar to the <code>asset_id</code>, the <code>asset_key_family</code> is
 derived using the first input outpoint as a sort of chain randomness to ensure
-uniqueness within the system. Given a <code>genesis_outpoint</code> and a
-public key <code>asset_key_internal</code>, then <code>asset_key_family</code>
-is derived as follows:
-* <code>asset_key_family</code> = <code>asset_key_internal + sha256(asset_key_internal || genesis_outpoint)</code>
+uniqueness within the system as well as the output index and asset type to
+prevent collisions.
+The <code>asset_key_family</code> is derived as follows:
+* <code>asset_key_family</code> = <code>asset_key_internal +
+   sha256(asset_key_internal || genesis_outpoint || output_index || asset_type)
+   </code>
+
+where:
+* <code>asset_key_internal</code> is a 32-byte public key as defined by
+  [[../master/bip-0340.mediawiki|BIP-340]]
+* <code>genesis_outpoint</code> is the first previous input outpoint used in the
+  asset genesis transaction serialized in Bitcoin wire format.
+* <code>output_index</code> (4 byte, big-endian) is the index  of the output
+  which contains the unique Taro commitment in the genesis transaction. 
+* <code>asset_type</code> (1 byte) is the type of the asset being minted.
 
 The top level tree can be easily used to prove the existence of a set of given
 assets, the total amount of asset units held, as well as the sum of a given
@@ -410,7 +422,10 @@ or
 * <code>asset_tree_root = sha256(asset_key_family || left_hash || right_hash || sum_value)</code>
 
 where:
-* <code>asset_key_family</code> is the 32-byte hash of a public key derived from the genesis outpoint which can be used to collocate assets intended to be fungible with one another (issuing multiple tranches of the same asset) or collectibles.
+* <code>asset_key_family</code> is the 32-byte hash of a public key derived from
+  the genesis outpoint, the output index and asset type, which can be used to
+  collocate assets intended to be fungible with one another (issuing multiple
+  tranches of the same asset) or collectibles.
 * <code>asset_id</code> is the 32-byte asset ID specified above
 * <code>left_hash</code> is the hash of the left sub-tree.
 * <code>right_hash</code> is the hash of the right sub-tree.
@@ -570,10 +585,12 @@ The following function creates a new valid taproot public key script whose
 internal tapscript tree commits to the representation of the new asset:
 <source lang="python">
 create_new_asset_output(total_units: uint64, asset_tag: [32]byte, 
-    genesis_point: [36]byte, asset_meta: [32]byte, asset_type: uint8, 
-    asset_script_key: [32]byte, taro_attrs: TLV) -> PkScript:
+    genesis_point: [36]byte, asset_meta: [32]byte, output_index uint32,
+    asset_type: uint8, asset_script_key: [32]byte, taro_attrs: TLV) -> PkScript:
 
-    asset_id = sha256(genesis_point || asset_tag || asset_meta)
+    asset_id = sha256(
+        genesis_point || asset_tag || asset_meta || output_index || asset_type
+    )
 
     tlv_leaf = new_taro_tlv_leaf(
         taro_version=0, asset_id, asset_type, total_units, asset_script_version=0, 
