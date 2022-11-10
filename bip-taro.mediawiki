@@ -389,16 +389,16 @@ uniqueness within the system as well as the output index and asset type to
 prevent collisions.
 The <code>asset_key_family</code> is derived as follows:
 * <code>asset_key_family</code> = <code>asset_key_internal +
-   sha256(asset_key_internal || genesis_outpoint || output_index || asset_type)
-   </code>
+sha256(asset_key_internal || genesis_outpoint || output_index || asset_type)
+</code>
 
 where:
 * <code>asset_key_internal</code> is a 32-byte public key as defined by
-  [[../master/bip-0340.mediawiki|BIP-340]]
+[[../master/bip-0340.mediawiki|BIP-340]]
 * <code>genesis_outpoint</code> is the first previous input outpoint used in the
-  asset genesis transaction serialized in Bitcoin wire format.
+asset genesis transaction serialized in Bitcoin wire format.
 * <code>output_index</code> (4 byte, big-endian) is the index  of the output
-  which contains the unique Taro commitment in the genesis transaction. 
+which contains the unique Taro commitment in the genesis transaction. 
 * <code>asset_type</code> (1 byte) is the type of the asset being minted.
 
 The top level tree can be easily used to prove the existence of a set of given
@@ -423,9 +423,9 @@ or
 
 where:
 * <code>asset_key_family</code> is the 32-byte hash of a public key derived from
-  the genesis outpoint, the output index and asset type, which can be used to
-  collocate assets intended to be fungible with one another (issuing multiple
-  tranches of the same asset) or collectibles.
+the genesis outpoint, the output index and asset type, which can be used to
+collocate assets intended to be fungible with one another (issuing multiple
+tranches of the same asset) or collectibles.
 * <code>asset_id</code> is the 32-byte asset ID specified above
 * <code>left_hash</code> is the hash of the left sub-tree.
 * <code>right_hash</code> is the hash of the right sub-tree.
@@ -470,9 +470,16 @@ An asset leaf is a serialized TLV blob, with the following key-value mappings:
 * type: 0 (<code>taro_version</code>)
 ** value: 
 *** [<code>u8</code>:<code>version</code>]
-* type: 1 (<code>asset_id</code>)
+* type: 1 (<code>asset_genesis</code>)
 ** value:
-*** [<code>32*byte</code>:<code>id_bytes</code>]
+*** [<code>32*byte</code>:<code>first_prev_out_hash</code>]
+*** [<code>u32</code>:<code>first_prev_out_index</code>]
+*** [<code>BigSize</code>:<code>tag_len</code>]
+*** [<code>tag_len*byte</code>:<code>tag</code>]
+*** [<code>BigSize</code>:<code>metadata_len</code>]
+*** [<code>metadata_len*byte</code>:<code>metadata</code>]
+*** [<code>u32</code>:<code>output_index</code>]
+*** [<code>u8</code>:<code>type</code>]
 * type: 2 (<code>asset_type</code>)
 ** value: 
 *** [<code>u8</code>:<code>type</code>]
@@ -511,7 +518,7 @@ An asset leaf is a serialized TLV blob, with the following key-value mappings:
 where:
 
 * <code>taro_version</code>: is a single byte that denotes the version of Taro being used, which allows a client to determine which of the below TLV values to expect.
-* <code>asset_id</code>: is the <code>asset_id</code> defined above
+* <code>asset_genesis</code>: is the <code>asset_genesis</code> defined above, representing the preimage of the <code>asset_id</code>.
 * <code>asset_type</code>: is a single byte representing the type of the asset, two starting asset types are defined:
 ** <code>0</code>: a normal asset
 ** <code>1</code>: a collectible asset
@@ -527,15 +534,15 @@ where:
 ** <code>split_commitment_proof</code>: is used to permit the spending of an asset UTXO created as a result of an asset split. When an asset is split, the non-change UTXO commits to the location of all other splits within an MS-SMT tree. When spending a change UTXO resulting from an asset_split, a normal <code>asset_witness</code> isn't required, instead the owner of the change asset UTXO must prove that it holds a valid split which was authorized by the main transfer transaction.
 *** Outputs with the same <code>split_commitment</code> are said to share a single <code>asset_witness</code> as such outputs are the result of a new asset split. Therefore we only need a single witness and the resulting merkle-sum asset tree to verify a transfer.
 ** <code>asset_witness</code>: is a serialized witness in an identical format as Bitcoin's Segwit witness field. This field can only be blank if <code>prev_asset_id</code> is blank.
-* <code>split_commitment</code>: is used to commit to, and permit verification of the new output split distribution for normal assets. The <code>split_commitment_root</code> is an MS-SMT with a key of <code>sha256(output_index || asset_id || asset_script_key)</code>, and the value being the new Taro asset leaf. This is an optional field and is only specified wehn an asset value is split during transfer.
+* <code>split_commitment</code>: is used to commit to, and permit verification of the new output split distribution for normal assets. The <code>split_commitment_root</code> is an MS-SMT with a key of <code>sha256(output_index || asset_id || asset_script_key)</code>, and the value being the new Taro asset leaf. This is an optional field and is only specified when an asset value is split during transfer.
 *** Outputs with the same <code>split_commitment</code> are said to share a single <code>asset_witness</code> as such outputs are the result of a new asset split. Therefore we only need a single witness and the resulting merkle-sum asset tree to verify a transfer.
 * <code>asset_script_version</code>: is a 2 byte asset script version that governs how the following TLV value is to be validated.
 * <code>asset_script_key</code>: is the external public key derived in a BIP 341 manner which may commit to an asset script that encumbers this asset leaf.
 * <code>asset_family_key</code>: is a 32-byte public key as defined by [[../master/bip-0340.mediawiki|BIP-340]] followed by a 64-byte BIP 340 signature over the <code>asset_id</code>. This key can be used to associate distinct assets as identified by their <code>asset_id</code>, effectively allowing further issuance of a base asset. Assets that references the same <code>asset_family_key</code> are to be considered the same asset. This is an optional field, and assets that don't contain this field are effectively considered to be a one-time only issuance event, meaning no further assets related to the derived <code>asset_id</code> can be created.
 * <code>cannonical_universe<code>: is a key (with no corresponding value) which if specified, designates the existence of an on-chain canonical Universe. Specified further in bip-taro-universe.mediawiki, a canonical Universe is maintained by the issuer of an asset and can be used to allow 3rd parties to easily audit the total asset supply and also track future issuance. In short, if this is specified, ''second'' output of the next spend of the outpoint created during asset issuance MUST commit to the root hash of a base Universe and all subsequent spends must only happen after later asset issuance events, and MUST commit to a new valid Universe root. This feature allows light clients to watch a set of outputs on chain to be notified of future asset issuance.
 
-(TODO(roasbeef): merkle sum commitment over input set as well?)
-  * enables probabilistic validation?
+(TODO(roasbeef): merkle sum commitment over input set as well? enables probabilistic validation?)
+
 
 An asset leaf serves to store structured data related to an asset, as well as
 the series of previous input asset witnesses needed to verify the proper
