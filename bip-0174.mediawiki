@@ -595,6 +595,17 @@ derived from an aggregate key.
 | 2
 | [[bip-0376.mediawiki|376]]
 |-
+| Generic Signed Message
+| <tt>PSBT_IN_GENERIC_SIGNED_MESSAGE = 0x21</tt>
+| None
+| No key data
+| <tt><bytes message></tt>
+| The UTF-8 encoded message to be signed.
+|
+|
+| 0, 2
+| [[bip-0322.mediawiki|322]]
+|-
 | Proprietary Use Type
 | <tt>PSBT_IN_PROPRIETARY = 0xFC</tt>
 | <tt><compact size uint identifier length> <bytes identifier> <compact size uint subtype> <bytes subkeydata></tt>
